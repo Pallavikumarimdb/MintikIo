@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       String      @id @default(cuid())
+  email    String      @unique
+  password String
+  username String      @unique
+  avatar   String
+  Repositories   Repository[]
+  badges   UserBadge[]
+  publicBlink   PublicBlink[]
+  blinks   Blink[]
+}
+
+// Metadata about the repo associated with the badge.
+model Repository {
+  id           String   @id @default(cuid())
+  name         String
+  url          String
+  description  String
+  stars        Int
+  languages    Json
+  commits      Int
+  contributors Int
+  forks        Int
+  skillBadge   Badge?
+  analyzed Boolean @default(false)
+  addedAt      DateTime @default(now())
+  userId String
+
+  user   User  @relation(fields: [userId], references: [id])
+}
+
+// The main badge model, includes relations to stats, earned users, requirements, benefits, and related badges.
+model Badge {
+  id             String          @id @default(cuid())
+  name           String
+  description    String
+  image          String
+  mintedAt       DateTime
+  requirements   String[]
+  benefits       String[]
+  repositoryId   String?         @unique
+  repository     Repository?     @relation(fields: [repositoryId], references: [id])
+  stats          BadgeStats?     @relation("BadgeToStats")
+  earnedBy       UserBadge[]
+
+  // Bidirectional relations to other badges
+  mainBadges     RelatedBadge[]  @relation("MainBadge")
+  relatedBadges  RelatedBadge[]  @relation("RelatedToBadge")
+  blinks         PublicBlink[]
+  Blinks         Blink[]
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+// Contains the totalEarned, averageRepoStars, etc.
+model BadgeStats {
+  id                   String @id @default(cuid())
+  totalEarned          Int
+  averageRepoStars     Int
+  averageContributions Int
+
+  badge   Badge  @relation("BadgeToStats", fields: [badgeId], references: [id])
+  badgeId String @unique
+}
+
+
+// Join table for many-to-many between User and Badge.
+model UserBadge {
+  id      String  @id @default(cuid())
+  user    User    @relation(fields: [userId], references: [id])
+  userId  String
+  badge   Badge   @relation(fields: [badgeId], references: [id])
+  badgeId String
+}
+
+// Self-referencing many-to-many relationship to support relatedBadges.
+model RelatedBadge {
+  id        String @id @default(cuid())
+
+  // Main badge
+  badge     Badge  @relation("MainBadge", fields: [badgeId], references: [id])
+  badgeId   String
+
+  // Related badge
+  related   Badge  @relation("RelatedToBadge", fields: [relatedId], references: [id])
+  relatedId String
+}
+
+
+model PublicBlink {
+  id         String   @id @default(cuid())
+  badgeId    String
+  creatorId  String
+  url        String
+  createdAt  DateTime @default(now())
+  expiresAt  DateTime
+  views      Int      @default(0)
+  likes      Int      @default(0)
+  shares     Int      @default(0)
+  comments   Int      @default(0)
+
+  // Relations
+  badge   Badge @relation(fields: [badgeId], references: [id])
+  creator User  @relation(fields: [creatorId], references: [id])
+}
+
+
+model Blink {
+  id         String   @id @default(cuid())
+  url        String
+  badgeId    String
+  badgeName  String
+  createdAt  DateTime
+  expiresAt  DateTime
+  clicks     Int      @default(0)
+  mints      Int      @default(0)
+  userCreated String
+  
+  badge   Badge @relation(fields: [badgeId], references: [id])
+  creator User  @relation(fields: [userCreated], references: [id]) // Wallet address or username (not a foreign key)
+
+}
+
