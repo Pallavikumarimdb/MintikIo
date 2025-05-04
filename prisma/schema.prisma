@@ -8,59 +8,121 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// User model
 model User {
-  id       String      @id @default(cuid())
-  email    String      @unique
-  password String
-  username String      @unique
-  avatar   String
-  Repositories   Repository[]
-  badges   UserBadge[]
-  publicBlink   PublicBlink[]
-  blinks   Blink[]
+  id                String              @id @default(cuid())
+  name              String?
+  email             String              @unique
+  emailVerified     DateTime?
+  password          String?
+  image             String?
+  bio               String?
+  location          String?
+  title             String?
+  username          String?             @unique
+  walletAddress     String?             @unique
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  
+  // Relations
+  badges            UserBadge[]
+  repositories      Repository[]
+  education         Education[]
+  experience        Experience[]
+  skills            UserSkill[]
+  challengeSubmissions ChallengeSubmission[]
+  jobApplications   JobApplication[]
+  solanaBlinks      SolanaBlink[]
+  comments          Comment[]
+  likes             Like[]
+  notifications     Notification[]
+  followers         Follow[]            @relation("following")
+  following         Follow[]            @relation("follower")
 }
 
-// Metadata about the repo associated with the badge.
+// Follow relationship between users
+model Follow {
+  id          String   @id @default(cuid())
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followerId  String
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+  followingId String
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+}
+
+// Repository model
 model Repository {
-  id           String   @id @default(cuid())
-  name         String
-  url          String
-  description  String
-  stars        Int
-  languages    Json
-  commits      Int
-  contributors Int
-  forks        Int
-  skillBadge   Badge?
-  analyzed Boolean @default(false)
-  addedAt      DateTime @default(now())
-  userId String
-
-  user   User  @relation(fields: [userId], references: [id])
+  id          String    @id @default(cuid())
+  name        String
+  url         String
+  description String?
+  stars       Int       @default(0)
+  commits     Int       @default(0)
+  contributors Int      @default(0)
+  analyzed    Boolean   @default(false)
+  addedAt     DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  languages   Language[]
+  badges      Badge[]   // Badges earned through this repository
 }
 
-// The main badge model, includes relations to stats, earned users, requirements, benefits, and related badges.
+// Language model for repository languages
+model Language {
+  id           String     @id @default(cuid())
+  name         String
+  percentage   Float
+  
+  // Relations
+  repository   Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  repositoryId String
+}
+
+// Badge model
 model Badge {
-  id             String          @id @default(cuid())
-  name           String
-  description    String
-  image          String
-  mintedAt       DateTime
-  requirements   String[]
-  benefits       String[]
-  repositoryId   String?         @unique
-  repository     Repository?     @relation(fields: [repositoryId], references: [id])
-  stats          BadgeStats?     @relation("BadgeToStats")
-  earnedBy       UserBadge[]
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String
+  image       String?
+  requirements String[]
+  benefits    String[]
+  category    String
+  difficulty  String      @default("Intermediate")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  // Relations
+  users       UserBadge[]
+  repositories Repository[] // Repositories that earned this badge
+  challenges  Challenge[]   // Challenges that award this badge
+  jobs        Job[]         // Jobs that require this badge
+  solanaBlinks SolanaBlink[]
+  comments    Comment[]
+  likes       Like[]
+  stats       BadgeStats? @relation("BadgeToStats")
 
-  // Bidirectional relations to other badges
-  mainBadges     RelatedBadge[]  @relation("MainBadge")
-  relatedBadges  RelatedBadge[]  @relation("RelatedToBadge")
-  blinks         PublicBlink[]
-  Blinks         Blink[]
+}
 
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+// UserBadge model (many-to-many relationship between User and Badge)
+model UserBadge {
+  id          String    @id @default(cuid())
+  mintedAt    DateTime  @default(now())
+  shared      Boolean   @default(false)
+  mintAddress String?   // Solana mint address
+  transaction Transaction?
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  badge       Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  badgeId     String
+
+  @@unique([userId, badgeId])
 }
 
 // Contains the totalEarned, averageRepoStars, etc.
@@ -74,61 +136,208 @@ model BadgeStats {
   badgeId String @unique
 }
 
-
-// Join table for many-to-many between User and Badge.
-model UserBadge {
-  id      String  @id @default(cuid())
-  user    User    @relation(fields: [userId], references: [id])
-  userId  String
-  badge   Badge   @relation(fields: [badgeId], references: [id])
-  badgeId String
-}
-
-// Self-referencing many-to-many relationship to support relatedBadges.
-model RelatedBadge {
-  id        String @id @default(cuid())
-
-  // Main badge
-  badge     Badge  @relation("MainBadge", fields: [badgeId], references: [id])
-  badgeId   String
-
-  // Related badge
-  related   Badge  @relation("RelatedToBadge", fields: [relatedId], references: [id])
-  relatedId String
-}
-
-
-model PublicBlink {
-  id         String   @id @default(cuid())
-  badgeId    String
-  creatorId  String
-  url        String
-  createdAt  DateTime @default(now())
-  expiresAt  DateTime
-  views      Int      @default(0)
-  likes      Int      @default(0)
-  shares     Int      @default(0)
-  comments   Int      @default(0)
-
-  // Relations
-  badge   Badge @relation(fields: [badgeId], references: [id])
-  creator User  @relation(fields: [creatorId], references: [id])
-}
-
-
-model Blink {
-  id         String   @id @default(cuid())
-  url        String
-  badgeId    String
-  badgeName  String
-  createdAt  DateTime
-  expiresAt  DateTime
-  clicks     Int      @default(0)
-  mints      Int      @default(0)
-  userCreated String
+// Challenge model
+model Challenge {
+  id          String    @id @default(cuid())
+  title       String
+  description String
+  longDescription String?
+  startDate   DateTime
+  endDate     DateTime
+  badgeName   String
+  badgeDescription String?
+  difficulty  String
+  category    String
+  requirements String[]
+  prizes      String[]
+  participants Int       @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   
-  badge   Badge @relation(fields: [badgeId], references: [id])
-  creator User  @relation(fields: [userCreated], references: [id]) // Wallet address or username (not a foreign key)
-
+  // Relations
+  badge       Badge      @relation(fields: [badgeId], references: [id])
+  badgeId     String
+  submissions ChallengeSubmission[]
 }
 
+// ChallengeSubmission model
+model ChallengeSubmission {
+  id          String    @id @default(cuid())
+  repositoryUrl String
+  description String?
+  status      String    @default("pending") // pending, approved, rejected
+  submittedAt DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  challengeId String
+}
+
+// Job model
+model Job {
+  id          String    @id @default(cuid())
+  title       String
+  company     String
+  logo        String?
+  location    String
+  salary      String?
+  description String
+  responsibilities String[]
+  requirements String[]
+  badges      String[]  // Required skill badges
+  featured    Boolean   @default(false)
+  postedAt    DateTime  @default(now())
+  expiresAt   DateTime?
+  companyDescription String?
+  applicationUrl String?
+  contactEmail String?
+  
+  // Relations
+  requiredBadges Badge[]
+  applications JobApplication[]
+}
+
+// JobApplication model
+model JobApplication {
+  id          String    @id @default(cuid())
+  resume      String?   // URL to resume
+  coverLetter String?
+  contactEmail String
+  status      String    @default("submitted") // submitted, reviewed, interviewed, offered, rejected
+  appliedAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  jobId       String
+}
+
+// SolanaBlink model
+model SolanaBlink {
+  id          String    @id @default(cuid())
+  url         String    @unique
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime?
+  clicks      Int       @default(0)
+  mints       Int       @default(0)
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  badge       Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  badgeId     String
+}
+
+// Transaction model
+model Transaction {
+  id          String    @id @default(cuid())
+  txHash      String    @unique
+  status      String    // pending, confirmed, failed
+  timestamp   DateTime  @default(now())
+  blockHeight Int?
+  confirmations Int?
+  fee         Float?
+  signature   String?
+  
+  // Relations
+  userBadge   UserBadge @relation(fields: [userBadgeId], references: [id], onDelete: Cascade)
+  userBadgeId String    @unique
+}
+
+// Comment model
+model Comment {
+  id          String    @id @default(cuid())
+  content     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  badge       Badge?    @relation(fields: [badgeId], references: [id], onDelete: SetNull)
+  badgeId     String?
+}
+
+// Like model
+model Like {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  badge       Badge?    @relation(fields: [badgeId], references: [id], onDelete: SetNull)
+  badgeId     String?
+
+  @@unique([userId, badgeId])
+}
+
+// Education model
+model Education {
+  id          String    @id @default(cuid())
+  school      String
+  degree      String
+  year        String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+}
+
+// Experience model
+model Experience {
+  id          String    @id @default(cuid())
+  company     String
+  position    String
+  duration    String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+}
+
+// Skill model
+model Skill {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  category    String?
+  
+  // Relations
+  users       UserSkill[]
+}
+
+// UserSkill model (many-to-many relationship between User and Skill)
+model UserSkill {
+  id          String    @id @default(cuid())
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  skillId     String
+
+  @@unique([userId, skillId])
+}
+
+// Notification model
+model Notification {
+  id          String    @id @default(cuid())
+  type        String    // badge, repo, challenge, job, follow, etc.
+  title       String
+  description String
+  read        Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+}
