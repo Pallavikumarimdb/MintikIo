@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import { signIn } from "next-auth/react";
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -32,24 +32,15 @@ export function LoginForm() {
     setIsLoading(true)
 
     try {
-      // Mock API call
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      })
+      const response = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
 
-      if (!response.ok) {
+      if (!response?.ok) {
         throw new Error("Login failed")
       }
-
-      const data = await response.json()
-
-      // Store user data and token in localStorage
-      localStorage.setItem("user", JSON.stringify(data.user))
-      localStorage.setItem("token", data.token)
 
       toast({
         title: "Success",

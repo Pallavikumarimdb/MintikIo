@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useSession, signOut } from "next-auth/react"
 import { Code2, Github, LineChart, LogIn, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConnectWallet } from "@/components/connect-wallet"
@@ -13,23 +13,14 @@ export function Navbar() {
   const pathname = usePathname()
   const router = useRouter()
   const { toast } = useToast()
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState("")
 
-  useEffect(() => {
-    // Check if user is logged in from localStorage
-    const user = localStorage.getItem("user")
-    if (user) {
-      const userData = JSON.parse(user)
-      setIsLoggedIn(true)
-      setUsername(userData.name || userData.email.split("@")[0])
-    }
-  }, [pathname])
+  const { data: session, status } = useSession()
 
-  const handleLogout = () => {
-    localStorage.removeItem("user")
-    localStorage.removeItem("token")
-    setIsLoggedIn(false)
+  const isLoggedIn = !!session
+  const username = session?.user?.name || session?.user?.email?.split("@")[0]
+
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
@@ -48,7 +39,6 @@ export function Navbar() {
       : []),
     { href: "/leaderboard", label: "Leaderboard", icon: <LineChart className="mr-2 h-4 w-4" /> },
   ]
-
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-16 items-center justify-between">

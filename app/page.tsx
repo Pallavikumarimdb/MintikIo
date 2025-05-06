@@ -8,7 +8,6 @@ import { HotOffers } from "@/components/home/hot-offers"
 export default function Home() {
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
       <section className="w-full py-12 md:py-24 lg:py-32 bg-gradient-to-b from-background to-background/80">
         <div className="container px-4 md:px-6">
           <div className="grid gap-6 lg:grid-cols-[1fr_400px] lg:gap-12 xl:grid-cols-[1fr_600px]">
@@ -71,7 +70,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features Section */}
       <section className="w-full py-12 md:py-24 lg:py-32 bg-muted/50">
         <div className="container px-4 md:px-6">
           <div className="flex flex-col items-center justify-center space-y-4 text-center">

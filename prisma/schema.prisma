@@ -113,7 +113,7 @@ model UserBadge {
   id          String    @id @default(cuid())
   mintedAt    DateTime  @default(now())
   shared      Boolean   @default(false)
-  mintAddress String?   // Solana mint address
+  mintAddress String?   
   transaction Transaction?
   
   // Relations
@@ -125,7 +125,7 @@ model UserBadge {
   @@unique([userId, badgeId])
 }
 
-// Contains the totalEarned, averageRepoStars, etc.
+
 model BadgeStats {
   id                   String @id @default(cuid())
   totalEarned          Int
@@ -136,7 +136,7 @@ model BadgeStats {
   badgeId String @unique
 }
 
-// Challenge model
+
 model Challenge {
   id          String    @id @default(cuid())
   title       String
@@ -154,29 +154,28 @@ model Challenge {
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
   
-  // Relations
+
   badge       Badge      @relation(fields: [badgeId], references: [id])
   badgeId     String
   submissions ChallengeSubmission[]
 }
 
-// ChallengeSubmission model
+
 model ChallengeSubmission {
   id          String    @id @default(cuid())
   repositoryUrl String
   description String?
-  status      String    @default("pending") // pending, approved, rejected
+  status      String    @default("pending") 
   submittedAt DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  // Relations
+
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   challenge   Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
   challengeId String
 }
 
-// Job model
 model Job {
   id          String    @id @default(cuid())
   title       String
@@ -187,7 +186,7 @@ model Job {
   description String
   responsibilities String[]
   requirements String[]
-  badges      String[]  // Required skill badges
+  badges      String[] 
   featured    Boolean   @default(false)
   postedAt    DateTime  @default(now())
   expiresAt   DateTime?
@@ -195,12 +194,11 @@ model Job {
   applicationUrl String?
   contactEmail String?
   
-  // Relations
   requiredBadges Badge[]
   applications JobApplication[]
 }
 
-// JobApplication model
+
 model JobApplication {
   id          String    @id @default(cuid())
   resume      String?   // URL to resume
@@ -210,14 +208,13 @@ model JobApplication {
   appliedAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  // Relations
+
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   job         Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
   jobId       String
 }
 
-// SolanaBlink model
 model SolanaBlink {
   id          String    @id @default(cuid())
   url         String    @unique
@@ -225,15 +222,14 @@ model SolanaBlink {
   expiresAt   DateTime?
   clicks      Int       @default(0)
   mints       Int       @default(0)
-  
-  // Relations
+
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   badge       Badge     @relation(fields: [badgeId], references: [id], onDelete: Cascade)
   badgeId     String
 }
 
-// Transaction model
+
 model Transaction {
   id          String    @id @default(cuid())
   txHash      String    @unique
@@ -244,31 +240,27 @@ model Transaction {
   fee         Float?
   signature   String?
   
-  // Relations
+
   userBadge   UserBadge @relation(fields: [userBadgeId], references: [id], onDelete: Cascade)
   userBadgeId String    @unique
 }
 
-// Comment model
 model Comment {
   id          String    @id @default(cuid())
   content     String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   badge       Badge?    @relation(fields: [badgeId], references: [id], onDelete: SetNull)
   badgeId     String?
 }
 
-// Like model
 model Like {
   id          String    @id @default(cuid())
   createdAt   DateTime  @default(now())
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   badge       Badge?    @relation(fields: [badgeId], references: [id], onDelete: SetNull)
@@ -277,7 +269,6 @@ model Like {
   @@unique([userId, badgeId])
 }
 
-// Education model
 model Education {
   id          String    @id @default(cuid())
   school      String
@@ -286,12 +277,10 @@ model Education {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
 }
 
-// Experience model
 model Experience {
   id          String    @id @default(cuid())
   company     String
@@ -300,18 +289,17 @@ model Experience {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
 }
 
-// Skill model
+
 model Skill {
   id          String    @id @default(cuid())
   name        String    @unique
   category    String?
   
-  // Relations
+
   users       UserSkill[]
 }
 
@@ -319,7 +307,6 @@ model Skill {
 model UserSkill {
   id          String    @id @default(cuid())
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
   skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -328,7 +315,7 @@ model UserSkill {
   @@unique([userId, skillId])
 }
 
-// Notification model
+
 model Notification {
   id          String    @id @default(cuid())
   type        String    // badge, repo, challenge, job, follow, etc.
@@ -337,7 +324,6 @@ model Notification {
   read        Boolean   @default(false)
   createdAt   DateTime  @default(now())
   
-  // Relations
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId      String
 }

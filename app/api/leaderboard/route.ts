@@ -1,85 +1,81 @@
 import { NextResponse } from "next/server"
-
-// Mock leaderboard data
-const leaderboardData = [
-  {
-    id: 1,
-    name: "Alex Johnson",
-    username: "alexj",
-    avatar: "/placeholder.svg?height=40&width=40",
-    badges: 12,
-    stars: 342,
-    repos: 28,
-    skills: ["Full Stack", "Frontend", "Backend"],
-  },
-  {
-    id: 2,
-    name: "Sarah Chen",
-    username: "sarahc",
-    avatar: "/placeholder.svg?height=40&width=40",
-    badges: 9,
-    stars: 287,
-    repos: 15,
-    skills: ["Frontend", "UI/UX", "Mobile"],
-  },
-  {
-    id: 3,
-    name: "Michael Rodriguez",
-    username: "mrodriguez",
-    avatar: "/placeholder.svg?height=40&width=40",
-    badges: 8,
-    stars: 256,
-    repos: 22,
-    skills: ["Backend", "DevOps", "Database"],
-  },
-  {
-    id: 4,
-    name: "Emily Wilson",
-    username: "emilyw",
-    avatar: "/placeholder.svg?height=40&width=40",
-    badges: 7,
-    stars: 198,
-    repos: 17,
-    skills: ["AI/ML", "Data Science", "Python"],
-  },
-  {
-    id: 5,
-    name: "David Kim",
-    username: "davidk",
-    avatar: "/placeholder.svg?height=40&width=40",
-    badges: 6,
-    stars: 176,
-    repos: 14,
-    skills: ["Mobile", "React Native", "Flutter"],
-  },
-]
+import { prisma } from "@/lib/prisma"
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const category = searchParams.get("category") || "all"
-  const sortBy = searchParams.get("sortBy") || "badges"
+  try {
+    const { searchParams } = new URL(request.url)
+    const category = searchParams.get("category") || "all"
+    const sortBy = searchParams.get("sortBy") || "badges"
+    const limit = Number.parseInt(searchParams.get("limit") || "50")
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const skip = (page - 1) * limit
 
-  // Filter by category if needed
-  let filtered = [...leaderboardData]
-  if (category !== "all") {
-    const categoryMap: Record<string, string[]> = {
-      frontend: ["Frontend", "UI/UX"],
-      backend: ["Backend", "Database"],
-      fullstack: ["Full Stack"],
-      mobile: ["Mobile", "React Native", "Flutter"],
-      aiml: ["AI/ML", "Data Science"],
-      devops: ["DevOps", "Infrastructure"],
+    // Build query
+    let whereClause = {}
+
+    if (category !== "all") {
+      whereClause = {
+        skills: {
+          some: {
+            skill: {
+              category,
+            },
+          },
+        },
+      }
     }
 
-    filtered = filtered.filter((dev) => dev.skills.some((skill) => categoryMap[category]?.includes(skill)))
+    const users = await prisma.user.findMany({
+      where: whereClause,
+      include: {
+        _count: {
+          select: {
+            badges: true,
+            repositories: true,
+          },
+        },
+        skills: {
+          include: {
+            skill: true,
+          },
+          take: 5,
+        },
+      },
+      orderBy:
+        sortBy === "badges"
+          ? { badges: { _count: "desc" } }
+          : sortBy === "repos"
+            ? { repositories: { _count: "desc" } }
+            : { followers: { _count: "desc" } },
+      take: limit,
+      skip,
+    })
+
+    const transformedUsers = users.map((user) => {
+      const { password, email, ...safeUser } = user
+      return {
+        ...safeUser,
+        badgeCount: user._count.badges,
+        repoCount: user._count.repositories,
+        skills: user.skills.map((us) => us.skill.name),
+      }
+    })
+
+    const totalUsers = await prisma.user.count({
+      where: whereClause,
+    })
+
+    return NextResponse.json({
+      users: transformedUsers,
+      pagination: {
+        total: totalUsers,
+        pages: Math.ceil(totalUsers / limit),
+        current: page,
+        limit,
+      },
+    })
+  } catch (error) {
+    console.error("Failed to fetch leaderboard:", error)
+    return NextResponse.json({ error: "Failed to fetch leaderboard" }, { status: 500 })
   }
-
-  // Sort by the requested field
-  filtered.sort((a, b) => {
-    if (sortBy === "badges") return b.badges - a.badges
-    if (sortBy === "stars") return b.stars - a.stars
-    return b.repos - a.repos
-  })
-
-  return NextResponse.json(filtered)
 }

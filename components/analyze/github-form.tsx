@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Github } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RepoResults } from "@/components/analyze/repo-results"
 import { toast } from "@/components/ui/use-toast"
+import { useSession } from "next-auth/react"
 
 export function GithubForm() {
   const searchParams = useSearchParams()
@@ -19,14 +20,11 @@ export function GithubForm() {
   const [repoUrl, setRepoUrl] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [results, setResults] = useState<any>(null)
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
   useEffect(() => {
-    // Check if user is logged in
-    const user = localStorage.getItem("user")
-    setIsLoggedIn(!!user)
-
-    // If repo parameter is provided, prefill the form
     if (repoParam) {
       setRepoUrl(`https://github.com/username/${repoParam}`)
     }
@@ -44,15 +42,24 @@ export function GithubForm() {
       return
     }
 
+    if (!session) {
+      toast({
+        title: "Login required",
+        description: "Please sign in to analyze a repository.",
+        variant: "destructive",
+      })
+      router.push("/login")
+      return
+    }
+
     setIsAnalyzing(true)
 
     try {
-      // Mock API call
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(isLoggedIn && { Authorization: `Bearer ${localStorage.getItem("token")}` }),
+          Authorization: `Bearer ${session?.accessToken || ""}`,
         },
         body: JSON.stringify({ repoUrl }),
       })

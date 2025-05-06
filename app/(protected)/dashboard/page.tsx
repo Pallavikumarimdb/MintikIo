@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Award, Code, FileText, Github, Share2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -14,21 +15,24 @@ import { ResumeViewer } from "@/components/dashboard/resume-viewer"
 import { RepositoryList } from "@/components/dashboard/repository-list"
 
 export default function DashboardPage() {
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
 
   useEffect(() => {
-    // Check if user is logged in
-    const userData = localStorage.getItem("user")
-    if (!userData) {
-      router.push("/login")
-      return
-    }
+    if (status === "loading") return
 
-    setUser(JSON.parse(userData))
-    setIsLoading(false)
-  }, [router])
+    console.log("session", session)
+
+    if (!session) {
+      router.push("/login")
+    } else {
+      setUser(session.user)
+      setIsLoading(false)
+    }
+  }, [session, status, router])
+
 
   if (isLoading) {
     return (
@@ -37,6 +41,8 @@ export default function DashboardPage() {
       </div>
     )
   }
+
+  if (!session) return null
 
   return (
     <div className="container py-10">

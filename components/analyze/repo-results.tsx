@@ -6,10 +6,10 @@ import { Award, Bookmark, Check, Code, GitFork, Github, Share2, Star, Users } fr
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useSession } from "next-auth/react"
 
 interface RepoResultsProps {
   results: {
@@ -25,6 +25,7 @@ interface RepoResultsProps {
 }
 
 export function RepoResults({ results }: RepoResultsProps) {
+  const { data: session, status } = useSession()
   const router = useRouter()
   const [isMinting, setIsMinting] = useState(false)
   const [mintingComplete, setMintingComplete] = useState(false)
@@ -33,14 +34,8 @@ export function RepoResults({ results }: RepoResultsProps) {
   const [showBlinkDialog, setShowBlinkDialog] = useState(false)
   const [blinkUrl, setBlinkUrl] = useState("")
 
-  useEffect(() => {
-    // Check if user is logged in
-    const user = localStorage.getItem("user")
-    setIsLoggedIn(!!user)
-  }, [])
-
   const handleMint = async () => {
-    if (!isLoggedIn) {
+    if (!session) {
       toast({
         title: "Login Required",
         description: "Please login to mint NFT badges",
@@ -54,12 +49,11 @@ export function RepoResults({ results }: RepoResultsProps) {
     setShowMintDialog(true)
 
     try {
-      // Mock minting process
       const response = await fetch("/api/mint-nft", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${session?.accessToken || ""}`,
         },
         body: JSON.stringify({ skillBadge: results.skillBadge }),
       })

@@ -1,179 +1,144 @@
 import { NextResponse } from "next/server"
-
-// Mock job offers data
-const jobOffers = [
-  {
-    id: 1,
-    title: "Senior Full Stack Developer",
-    company: "TechCorp",
-    logo: "/placeholder.svg?height=40&width=40",
-    location: "San Francisco, CA (Remote)",
-    salary: "$120K - $160K",
-    description:
-      "We're looking for a Senior Full Stack Developer to join our team and help build innovative web applications. You'll work on challenging projects using the latest technologies.",
-    responsibilities: [
-      "Design and implement scalable web applications",
-      "Work with both frontend and backend technologies",
-      "Collaborate with cross-functional teams",
-      "Mentor junior developers",
-      "Participate in code reviews and technical discussions",
-    ],
-    requirements: [
-      "5+ years of experience in full stack development",
-      "Proficiency in React, Node.js, and TypeScript",
-      "Experience with cloud platforms (AWS, GCP, or Azure)",
-      "Strong problem-solving skills",
-      "Excellent communication skills",
-    ],
-    badges: ["Full Stack", "React", "Node.js"],
-    requiredBadges: ["Full Stack Developer"],
-    featured: true,
-    postedAt: "2023-05-28T10:30:00Z",
-    companyDescription:
-      "TechCorp is a leading technology company specializing in enterprise software solutions. We're dedicated to creating innovative products that solve real-world problems.",
-    applicationUrl: "https://techcorp.com/careers",
-    contactEmail: "jobs@techcorp.com",
-  },
-  {
-    id: 2,
-    title: "Frontend Engineer",
-    company: "DesignLabs",
-    logo: "/placeholder.svg?height=40&width=40",
-    location: "New York, NY (Hybrid)",
-    salary: "$100K - $130K",
-    description:
-      "Join our team as a Frontend Engineer and help create beautiful, responsive user interfaces. You'll work closely with designers and backend developers to implement pixel-perfect designs.",
-    responsibilities: [
-      "Implement responsive user interfaces",
-      "Collaborate with designers to ensure visual consistency",
-      "Optimize applications for maximum performance",
-      "Write clean, maintainable code",
-      "Participate in user testing and feedback sessions",
-    ],
-    requirements: [
-      "3+ years of experience in frontend development",
-      "Strong proficiency in React and TypeScript",
-      "Experience with modern CSS frameworks",
-      "Knowledge of web performance optimization",
-      "Eye for design and attention to detail",
-    ],
-    badges: ["Frontend", "React", "TypeScript"],
-    requiredBadges: ["Frontend Expert"],
-    featured: false,
-    postedAt: "2023-05-30T14:45:00Z",
-    companyDescription:
-      "DesignLabs is a design-focused technology company creating beautiful digital experiences. We believe in the power of design to transform how people interact with technology.",
-    applicationUrl: "https://designlabs.io/careers",
-    contactEmail: "careers@designlabs.io",
-  },
-  {
-    id: 3,
-    title: "Blockchain Developer",
-    company: "CryptoInnovate",
-    logo: "/placeholder.svg?height=40&width=40",
-    location: "Remote",
-    salary: "$130K - $180K",
-    description:
-      "We're seeking a talented Blockchain Developer to join our team and help build the future of decentralized applications. You'll work on cutting-edge projects using Solana and other blockchain technologies.",
-    responsibilities: [
-      "Design and implement smart contracts",
-      "Develop decentralized applications (dApps)",
-      "Integrate blockchain solutions with existing systems",
-      "Stay up-to-date with the latest blockchain technologies",
-      "Contribute to technical discussions and architecture decisions",
-    ],
-    requirements: [
-      "3+ years of experience in blockchain development",
-      "Proficiency in Rust and JavaScript",
-      "Experience with Solana or other blockchain platforms",
-      "Understanding of cryptographic principles",
-      "Strong problem-solving skills",
-    ],
-    badges: ["Blockchain", "Solana", "Rust"],
-    requiredBadges: ["Blockchain Developer"],
-    featured: true,
-    postedAt: "2023-05-29T09:15:00Z",
-    companyDescription:
-      "CryptoInnovate is at the forefront of blockchain innovation, building the infrastructure for the decentralized future. We're passionate about creating technology that empowers individuals and transforms industries.",
-    applicationUrl: "https://cryptoinnovate.io/jobs",
-    contactEmail: "talent@cryptoinnovate.io",
-  },
-]
+import { prisma } from "@/lib/prisma"
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "../auth/[...nextauth]/route"
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url)
-  const id = searchParams.get("id")
-  const featured = searchParams.get("featured")
-  const badge = searchParams.get("badge")
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+    const featured = searchParams.get("featured")
+    const badge = searchParams.get("badge")
+    const limit = Number.parseInt(searchParams.get("limit") || "20")
+    const page = Number.parseInt(searchParams.get("page") || "1")
+    const skip = (page - 1) * limit
 
-  if (id) {
-    // Get job by ID
-    const job = jobOffers.find((j) => j.id === Number.parseInt(id))
-    if (!job) {
-      return NextResponse.json({ error: "Job not found" }, { status: 404 })
+    if (id) {
+      const job = await prisma.job.findUnique({
+        where: {
+          id,
+        },
+        include: {
+          requiredBadges: true,
+          _count: {
+            select: {
+              applications: true,
+            },
+          },
+        },
+      })
+
+      if (!job) {
+        return NextResponse.json({ error: "Job not found" }, { status: 404 })
+      }
+
+      return NextResponse.json(job)
     }
-    return NextResponse.json(job)
+
+    let whereClause = {}
+
+    if (featured === "true") {
+      whereClause = {
+        ...whereClause,
+        featured: true,
+      }
+    }
+
+    if (badge) {
+      whereClause = {
+        ...whereClause,
+        OR: [{ badges: { has: badge } }, { requiredBadges: { some: { name: badge } } }],
+      }
+    }
+
+    const jobs = await prisma.job.findMany({
+      where: whereClause,
+      include: {
+        requiredBadges: true,
+        _count: {
+          select: {
+            applications: true,
+          },
+        },
+      },
+      orderBy: [{ featured: "desc" }, { postedAt: "desc" }],
+      take: limit,
+      skip,
+    })
+
+    const totalJobs = await prisma.job.count({
+      where: whereClause,
+    })
+
+    return NextResponse.json({
+      jobs,
+      pagination: {
+        total: totalJobs,
+        pages: Math.ceil(totalJobs / limit),
+        current: page,
+        limit,
+      },
+    })
+  } catch (error) {
+    console.error("Failed to fetch jobs:", error)
+    return NextResponse.json({ error: "Failed to fetch jobs" }, { status: 500 })
   }
-
-  // Filter jobs
-  let filteredJobs = [...jobOffers]
-
-  if (featured === "true") {
-    filteredJobs = filteredJobs.filter((j) => j.featured)
-  }
-
-  if (badge) {
-    filteredJobs = filteredJobs.filter(
-      (j) =>
-        j.badges.some((b) => b.toLowerCase() === badge.toLowerCase()) ||
-        j.requiredBadges.some((b) => b.toLowerCase() === badge.toLowerCase()),
-    )
-  }
-
-  // Sort by featured and then by posted date
-  filteredJobs.sort((a, b) => {
-    if (a.featured && !b.featured) return -1
-    if (!a.featured && b.featured) return 1
-    return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime()
-  })
-
-  return NextResponse.json(filteredJobs)
 }
 
 export async function POST(request: Request) {
   try {
-    // Check for authorization header
-    const authHeader = request.headers.get("Authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const session = await getServerSession(authOptions)
+
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { jobId, userId, resume, coverLetter, contactEmail } = await request.json()
+    const userId = session.user.id
+    const { jobId, resume, coverLetter, contactEmail } = await request.json()
 
-    // Validate required fields
-    if (!jobId || !userId || !contactEmail) {
+    if (!jobId || !contactEmail) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Check if job exists
-    const job = jobOffers.find((j) => j.id === jobId)
+    const job = await prisma.job.findUnique({
+      where: {
+        id: jobId,
+      },
+    })
+
     if (!job) {
       return NextResponse.json({ error: "Job not found" }, { status: 404 })
     }
 
-    // Create application
-    const application = {
-      id: Date.now(),
-      jobId,
-      userId,
-      resume,
-      coverLetter,
-      contactEmail,
-      appliedAt: new Date().toISOString(),
-      status: "submitted", // submitted, reviewed, interviewed, offered, rejected
+    const existingApplication = await prisma.jobApplication.findFirst({
+      where: {
+        userId,
+        jobId,
+      },
+    })
+
+    if (existingApplication) {
+      return NextResponse.json({ error: "You have already applied to this job" }, { status: 400 })
     }
 
-    // In a real app, you would save this to a database
+    const application = await prisma.jobApplication.create({
+      data: {
+        userId,
+        jobId,
+        resume,
+        coverLetter,
+        contactEmail,
+      },
+    })
+
+    await prisma.notification.create({
+      data: {
+        userId,
+        type: "job",
+        title: "Job Application",
+        description: `Your application to ${job.title} at ${job.company} has been submitted!`,
+      },
+    })
 
     return NextResponse.json({
       success: true,
