@@ -2,14 +2,16 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Award, Bookmark, Check, Code, GitFork, Github, Share2, Star, Users } from "lucide-react"
+import { useWallet } from "@solana/wallet-adapter-react"
+import { Award, Code, Github, Share2, Star, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "@/components/ui/use-toast"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { useSession } from "next-auth/react"
+import { MintBadge } from "@/components/badge/mint-badge"
 
 interface RepoResultsProps {
   results: {
@@ -20,74 +22,62 @@ interface RepoResultsProps {
     commits: number
     contributors: number
     skillBadge: string
-    forks: number
   }
 }
 
 export function RepoResults({ results }: RepoResultsProps) {
-  const { data: session, status } = useSession()
   const router = useRouter()
-  const [isMinting, setIsMinting] = useState(false)
+  const { publicKey, connected } = useWallet()
   const [mintingComplete, setMintingComplete] = useState(false)
-  const [showMintDialog, setShowMintDialog] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [showBlinkDialog, setShowBlinkDialog] = useState(false)
   const [blinkUrl, setBlinkUrl] = useState("")
+  const [mintAddress, setMintAddress] = useState("")
+  const [txId, setTxId] = useState("")
 
-  const handleMint = async () => {
-    if (!session) {
-      toast({
-        title: "Login Required",
-        description: "Please login to mint NFT badges",
-        variant: "destructive",
-      })
-      router.push("/login")
-      return
-    }
+  useEffect(() => {
+    // Check if user is logged in
+    const user = localStorage.getItem("user")
+    setIsLoggedIn(!!user)
+  }, [])
 
-    setIsMinting(true)
-    setShowMintDialog(true)
+  const handleMintSuccess = async (mintAddress: string, txId: string) => {
+    setMintAddress(mintAddress)
+    setTxId(txId)
+    setMintingComplete(true)
+  }
+
+  const handleCreateBlink = async () => {
+    if (!mintAddress) return
 
     try {
-      const response = await fetch("/api/mint-nft", {
+      const response = await fetch("/api/blinks/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session?.accessToken || ""}`,
         },
-        body: JSON.stringify({ skillBadge: results.skillBadge }),
+        body: JSON.stringify({
+          badgeName: results.skillBadge,
+          mintAddress,
+          txId,
+        }),
       })
 
       if (!response.ok) {
-        throw new Error("Failed to mint NFT")
+        throw new Error("Failed to create Solana Blink")
       }
 
       const data = await response.json()
-
-      // Wait for 3 seconds to simulate blockchain transaction
-      setTimeout(() => {
-        setMintingComplete(true)
-        toast({
-          title: "NFT Minted Successfully",
-          description: `Your ${results.skillBadge} skill badge has been minted to your wallet`,
-        })
-      }, 3000)
+      setBlinkUrl(data.url)
+      setShowBlinkDialog(true)
     } catch (error) {
+      console.error("Error creating Blink:", error)
       toast({
         title: "Error",
-        description: "Failed to mint NFT. Please try again.",
+        description: "Failed to create Solana Blink. Please try again.",
         variant: "destructive",
       })
-      setShowMintDialog(false)
     }
-  }
-
-  const handleCreateBlink = () => {
-    // Generate a mock Solana Blink URL
-    const mockBlinkId = Math.random().toString(36).substring(2, 10)
-    const url = `https://blinks.solana.com/mint/${mockBlinkId}?badge=${encodeURIComponent(results.skillBadge)}`
-    setBlinkUrl(url)
-    setShowBlinkDialog(true)
   }
 
   const copyBlinkToClipboard = () => {
@@ -99,27 +89,9 @@ export function RepoResults({ results }: RepoResultsProps) {
     })
   }
 
-  const getBadgeColor = (type: string) => {
-    switch (type) {
-      case 'frontend':
-        return 'bg-badge-frontend';
-      case 'backend':
-        return 'bg-badge-backend';
-      case 'fullstack':
-        return 'bg-badge-fullstack';
-      case 'devops':
-        return 'bg-badge-devops';
-      case 'mobile':
-        return 'bg-badge-mobile';
-      default:
-        return 'bg-badge-default';
-    }
-  };
-
-
   return (
     <>
-      <Card className="mx-auto max-w-2xl shadow-lg border-t-4 border-t-primary">
+      <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Github className="h-5 w-5" />
@@ -128,72 +100,73 @@ export function RepoResults({ results }: RepoResultsProps) {
           <CardDescription>{results.description}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-            <div className="flex flex-row gap-2 items-center  rounded-lg border border-border/50 bg-background p-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            <div className="flex flex-col items-center justify-center rounded-lg border border-border/50 bg-background p-4">
               <Star className="mb-2 h-5 w-5 text-yellow-500" />
-              <span className="text-xl font-bold">{results.stars}</span>
-              <span className="text-sm text-muted-foreground">Stars</span>
+              <div className="text-2xl font-bold">{results.stars}</div>
+              <div className="text-sm text-muted-foreground">Stars</div>
             </div>
-            <div className="flex flex-row gap-2 items-center rounded-lg border border-border/50 bg-background p-2">
+            <div className="flex flex-col items-center justify-center rounded-lg border border-border/50 bg-background p-4">
               <Code className="mb-2 h-5 w-5 text-blue-500" />
-              <span className="text-xl font-bold">{results.commits}</span>
-              <span className="text-sm text-muted-foreground">Commits</span>
+              <div className="text-2xl font-bold">{results.commits}</div>
+              <div className="text-sm text-muted-foreground">Commits</div>
             </div>
-            <div className="flex flex-row gap-2 items-center  rounded-lg border border-border/50 bg-background p-2">
+            <div className="flex flex-col items-center justify-center rounded-lg border border-border/50 bg-background p-4">
               <Users className="mb-2 h-5 w-5 text-green-500" />
-              <span className="text-xl font-bold">{results.contributors}</span>
-              <span className="text-sm text-muted-foreground">Contributors</span>
-            </div>
-            <div className="flex flex-row gap-2 items-center rounded-lg border border-border/50 bg-background p-2">
-            <GitFork className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xl font-bold">{results.forks}</span>
-              <span className="text-sm text-muted-foreground">Forks</span>
+              <div className="text-2xl font-bold">{results.contributors}</div>
+              <div className="text-sm text-muted-foreground">Contributors</div>
             </div>
           </div>
+
           <div className="space-y-4">
             <h3 className="text-lg font-medium">Languages</h3>
-            <div className="flex flex-wrap gap-2">
-              {results.languages.map((language, i) => (
+            <div className="space-y-3">
+              {results.languages.map((language) => (
                 <div key={language.name} className="space-y-1">
-                  {/* <div className="flex justify-between text-sm">
+                  <div className="flex justify-between text-sm">
                     <span>{language.name}</span>
                     <span>{language.percentage}%</span>
                   </div>
-                  <Progress value={language.percentage} className="h-2" /> */}
-                  <Badge key={i} variant="outline" className="flex gap-2 items-center">
-                  <span className={`w-2 h-2 bg-[#7b3aec] shadow-[0_0_10px_rgba(123,58,236,0.8)] rounded-full ${getBadgeColor(language.name.toLowerCase())}`}></span>
-                    <span>{language.name}</span>
-                    <span>{language.percentage}%</span>
-                  </Badge>
+                  <Progress value={language.percentage} className="h-2" />
                 </div>
-
               ))}
             </div>
           </div>
 
           <Separator />
 
-          <div className="flex flex-row items-center justify-between  rounded-lg border border-border/50 bg-background p-6">
-           <div className="flex items-center gap-2">
-           <Award className="h-12 w-12 text-primary" />
-           <h3 className=" text-xl font-bold">Skill Badge</h3>
-           </div>
-            <div className="px-3 py-1.5 rounded-lg bg-card border border-primary/50 relative z-10 flex items-center gap-2 inline-flex items-center px-4 py-2 rounded-lg text-white bg-[#0D0D12] shadow-[0_0_20px_rgba(139,92,246,0.6)]">
-              <Bookmark className="h-4 w-4 text-primary" />
-              <span className="text-sm">{results.skillBadge}</span>
-            </div>
-          </div>
-          <div>
-          <p className="text-center text-sm text-muted-foreground">
+          <div className="flex flex-col items-center space-y-4 rounded-lg border border-border/50 bg-background p-6">
+            <Award className="h-12 w-12 text-primary" />
+            <h3 className="text-xl font-bold">Skill Badge</h3>
+            <Badge variant="outline" className="text-lg px-3 py-1">
+              {results.skillBadge}
+            </Badge>
+            <p className="text-center text-sm text-muted-foreground">
               Based on your repository analysis, we've assigned you this skill badge
             </p>
           </div>
         </CardContent>
         <CardFooter className="flex flex-col gap-3 sm:flex-row">
-          <Button onClick={handleMint} disabled={isMinting && !mintingComplete} className="w-full">
-            {isMinting && !mintingComplete ? "Minting..." : "Mint Skill Badge NFT"}
-          </Button>
-          {mintingComplete && (
+          {!connected ? (
+            <Button
+              onClick={() => {
+                toast({
+                  title: "Wallet Required",
+                  description: "Please connect your wallet to mint an NFT badge",
+                })
+              }}
+              className="w-full"
+            >
+              Connect Wallet to Mint
+            </Button>
+          ) : !mintingComplete ? (
+            <MintBadge
+              badgeName={results.skillBadge}
+              badgeDescription={`${results.skillBadge} badge earned through verified contributions to ${results.name}`}
+              badgeImage={`/placeholder.svg?height=300&width=300&text=${encodeURIComponent(results.skillBadge)}`}
+              onMintSuccess={handleMintSuccess}
+            />
+          ) : (
             <Button onClick={handleCreateBlink} variant="outline" className="w-full">
               <Share2 className="mr-2 h-4 w-4" />
               Create Solana Blink
@@ -201,44 +174,6 @@ export function RepoResults({ results }: RepoResultsProps) {
           )}
         </CardFooter>
       </Card>
-
-      <Dialog open={showMintDialog} onOpenChange={setShowMintDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{mintingComplete ? "NFT Minted Successfully" : "Minting Your NFT"}</DialogTitle>
-            <DialogDescription>
-              {mintingComplete
-                ? "Your skill badge has been minted to your wallet"
-                : "Please wait while we mint your skill badge NFT on Solana"}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col items-center justify-center py-6">
-            {mintingComplete ? (
-              <div className="flex flex-col items-center space-y-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100 dark:bg-green-900">
-                  <Check className="h-10 w-10 text-green-600 dark:text-green-400" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-xl font-bold">{results.skillBadge}</h3>
-                  <p className="text-sm text-muted-foreground">Transaction ID: 5Gn...7Uh</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button onClick={() => setShowMintDialog(false)}>Close</Button>
-                  <Button variant="outline" onClick={handleCreateBlink}>
-                    <Share2 className="mr-2 h-4 w-4" />
-                    Create Blink
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center space-y-4">
-                <div className="h-20 w-20 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
-                <p className="text-center text-sm text-muted-foreground">This may take a few moments</p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showBlinkDialog} onOpenChange={setShowBlinkDialog}>
         <DialogContent className="sm:max-w-md">
@@ -274,9 +209,9 @@ export function RepoResults({ results }: RepoResultsProps) {
                   onClick={() =>
                     window.open(
                       "https://twitter.com/intent/tweet?text=" +
-                      encodeURIComponent(
-                        `I just earned a ${results.skillBadge} badge on GitProof! Mint your own with this Solana Blink: ${blinkUrl}`,
-                      ),
+                        encodeURIComponent(
+                          `I just earned a ${results.skillBadge} badge on GitProof! Mint your own with this Solana Blink: ${blinkUrl}`,
+                        ),
                     )
                   }
                 >

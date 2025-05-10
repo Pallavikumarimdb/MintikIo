@@ -1,78 +1,38 @@
 "use client"
-
-import { useState } from "react"
 import { Wallet } from "lucide-react"
+import { useWallet } from "@solana/wallet-adapter-react"
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
 import { toast } from "@/components/ui/use-toast"
 
 export function ConnectWallet() {
-  const [connected, setConnected] = useState(false)
-  const [isOpen, setIsOpen] = useState(false)
-  const [walletAddress, setWalletAddress] = useState("")
-
-  const handleConnect = () => {
-    // Mock wallet connection
-    setTimeout(() => {
-      const mockAddress = "8xH5f...3kPn"
-      setWalletAddress(mockAddress)
-      setConnected(true)
-      setIsOpen(false)
-      toast({
-        title: "Wallet Connected",
-        description: `Successfully connected to ${mockAddress}`,
-      })
-    }, 1000)
-  }
+  const { publicKey, connected, disconnect } = useWallet()
 
   const handleDisconnect = () => {
-    setConnected(false)
-    setWalletAddress("")
+    disconnect()
     toast({
       title: "Wallet Disconnected",
       description: "Your wallet has been disconnected",
     })
   }
 
+  const formattedAddress = publicKey ? `${publicKey.toString().slice(0, 4)}...${publicKey.toString().slice(-4)}` : ""
+
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button variant="default" className="gap-2">
-          <Wallet className="h-4 w-4" />
-          {connected ? `${walletAddress}` : "Connect Wallet"}
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Connect your wallet</DialogTitle>
-          <DialogDescription>Connect your Solana wallet to mint NFTs and track your badges.</DialogDescription>
-        </DialogHeader>
-        <div className="flex flex-col gap-4 py-4">
-          {!connected ? (
-            <>
-              <Button onClick={handleConnect} className="w-full">
-                <img src="/placeholder.svg?height=24&width=24" alt="Phantom" className="mr-2 h-6 w-6" />
-                Phantom
-              </Button>
-              <Button onClick={handleConnect} className="w-full">
-                <img src="/placeholder.svg?height=24&width=24" alt="Solflare" className="mr-2 h-6 w-6" />
-                Solflare
-              </Button>
-            </>
-          ) : (
-            <Button variant="destructive" onClick={handleDisconnect}>
-              Disconnect Wallet
-            </Button>
-          )}
+    <div className="flex items-center">
+      {connected ? (
+        <div className="flex items-center gap-2">
+          <Button variant="outline" className="gap-2">
+            <Wallet className="h-4 w-4" />
+            {formattedAddress}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={handleDisconnect}>
+            Disconnect
+          </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      ) : (
+        <WalletMultiButton className="bg-primary hover:bg-primary/90 text-white rounded-md px-4 py-2 text-sm font-medium" />
+      )}
+    </div>
   )
 }

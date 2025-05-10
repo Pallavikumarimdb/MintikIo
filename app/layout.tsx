@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/toaster"
 import { getServerSession } from "next-auth"
 import { authOptions } from "./api/auth/[...nextauth]/route"
 import { SessionWrapper } from "@/components/SessionWrapper"
+import { SolanaWalletProvider } from "@/components/solana/wallet-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,6 +28,7 @@ export default async function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen bg-background`}>
+      <SolanaWalletProvider>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
           <div className="flex min-h-screen flex-col">
             <SessionWrapper session={session}>
@@ -36,6 +38,7 @@ export default async function RootLayout({
             <Toaster />
           </div>
         </ThemeProvider>
+        </SolanaWalletProvider>
       </body>
     </html>
   )
